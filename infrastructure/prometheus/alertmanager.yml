@@ -1,0 +1,86 @@
+# Configuration Alertmanager  Prompt 6.3.
+#
+# Renommage : channels Slack #lidia-alerts/#lidia-critical du spec ->
+# #nexus-alerts/#nexus-critical (convention NEXUS AI du projet).
+#
+# Secrets (webhook Slack, SMTP) : Alertmanager ne supporte NATIVEMENT aucune
+# substitution de variable d'environnement dans son fichier de config
+# statique monté en volume (contrairement à docker-compose)  les valeurs
+# ci-dessous sont des PLACEHOLDERS explicites ("CHANGE_ME"), suivant la même
+# convention déjà utilisée ailleurs dans ce projet pour les secrets par
+# défaut (ex. `GRAFANA_ADMIN_PASSWORD=change-me` dans .env.example) : à
+# remplacer manuellement (ou via un mécanisme d'injection de secrets externe
+# à ce prompt) avant tout déploiement réel  les alertes ne partiront pas
+# tant que ces valeurs ne sont pas renseignées, comportement attendu plutôt
+# qu'un échec silencieux avec une fausse URL.
+
+global:
+  resolve_timeout: 5m
+  slack_api_url: "https://hooks.slack.com/services/CHANGE_ME"
+  smtp_smarthost: "CHANGE_ME:587"
+  smtp_from: "alerts@nexus.local"
+  smtp_auth_username: "CHANGE_ME"
+  smtp_auth_password: "CHANGE_ME"
+
+route:
+  receiver: nexus-alerts-slack
+  group_by: ["alertname", "severity"]
+  group_wait: 5m
+  group_interval: 10m
+  repeat_interval: 4h
+  routes:
+    # Route critique : sévérité critical -> Slack #nexus-critical + email.
+    - matchers:
+        - severity="critical"
+      receiver: nexus-critical
+      continue: false
+
+    # Route business : alertes portant sur les métriques métier (business
+    # dashboard : campagnes, contenus, budget) -> email équipe marketing.
+    # `category="business"` : label absent des règles d'alerte de ce prompt
+    # (agent/llm/infrastructure_alerts.yml ne posent que `severity`) ; les
+    # 3 fichiers d'alertes livrés par ce prompt sont tous opérationnels/
+    # techniques, pas "business" au sens du spec (qui distingue une 3e
+    # catégorie sans fichier de règles dédié)  route conservée et prête à
+    # l'emploi pour de futures règles taggées `category: business`, plutôt
+    # que supprimée silencieusement faute de correspondance actuelle.
+    - matchers:
+        - category="business"
+      receiver: nexus-business-email
+      continue: false
+
+inhibit_rules:
+  # "si infrastructure critique, inhiber les alertes agents" (spec) : une
+  # alerte critique du groupe infrastructure (ex. HighMemory, ContainerRestarting)
+  # supprime les alertes agents en cours pour la même instance  un agent en
+  # erreur à cause d'un hôte à court de RAM n'a pas besoin de sa propre
+  # alerte redondante.
+  - source_matchers:
+      - severity="critical"
+      - alertname=~"HighCPU|HighMemory|DiskSpaceLow|RedisMemoryHigh|PostgresConnectionsHigh|ContainerRestarting"
+    target_matchers:
+      - alertname=~"AgentDown|AgentHighErrorRate|HITLQueueFull"
+    equal: ["instance"]
+
+receivers:
+  - name: nexus-alerts-slack
+    slack_configs:
+      - channel: "#nexus-alerts"
+        send_resolved: true
+        title: '{{ .CommonAnnotations.summary }}'
+        text: '{{ .CommonAnnotations.description }}'
+
+  - name: nexus-critical
+    slack_configs:
+      - channel: "#nexus-critical"
+        send_resolved: true
+        title: '🚨 {{ .CommonAnnotations.summary }}'
+        text: '{{ .CommonAnnotations.description }}'
+    email_configs:
+      - to: "CHANGE_ME@nexus.local"
+        send_resolved: true
+
+  - name: nexus-business-email
+    email_configs:
+      - to: "marketing-team@nexus.local"
+        send_resolved: true

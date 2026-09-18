@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/**
+ * Variables CSS shadcn/ui — palette "Modernist" alignée sur le logo réel
+ * (`public/logo_nexus.png` : réseau géométrique noir charbon avec un cœur
+ * hexagonal rouge/orangé) et sur `docs/LISEZ-MOI.md` (fond #f3f2f2, texte
+ * #201e1d, accent rouge #ec3013). Corrigé ici : plusieurs composants
+ * (Sidebar, Header, Login) référençaient déjà `bg-primary`/`border-l-primary`
+ * en s'attendant à du rouge, alors que `--primary` valait encore le noir/blanc
+ * neutre par défaut de shadcn — aucune de ces classes ne rendait la bonne
+ * couleur avant ce correctif.
+ */
+:root {
+  --background: #f7f6f6;
+  --foreground: #201e1d;
+  --card: #ffffff;
+  --card-foreground: #201e1d;
+  --popover: #ffffff;
+  --popover-foreground: #201e1d;
+  --primary: #ec3013;
+  --primary-foreground: #fbf7f6;
+  --secondary: #efeeed;
+  --secondary-foreground: #201e1d;
+  --muted: #efeeed;
+  --muted-foreground: #6b6663;
+  --accent: #f3ece9;
+  --accent-foreground: #201e1d;
+  --destructive: #c81e1e;
+  --destructive-foreground: #fbf7f6;
+  --border: #e4e1df;
+  --input: #e4e1df;
+  --ring: #ec3013;
+  --radius: 0rem;
+
+  --color-status-active: #16a34a;
+  --color-status-idle: #6b7280;
+  --color-status-error: #dc2626;
+  --color-status-paused: #d97706;
+}
+
+.dark {
+  --background: #17150f;
+  --foreground: #f3f2f2;
+  --card: #201e1d;
+  --card-foreground: #f3f2f2;
+  --popover: #201e1d;
+  --popover-foreground: #f3f2f2;
+  --primary: #ec3013;
+  --primary-foreground: #fbf7f6;
+  --secondary: #2b2827;
+  --secondary-foreground: #f3f2f2;
+  --muted: #2b2827;
+  --muted-foreground: #a39e9a;
+  --accent: #332420;
+  --accent-foreground: #f3f2f2;
+  --destructive: #e04b4b;
+  --destructive-foreground: #201e1d;
+  --border: #35312f;
+  --input: #35312f;
+  --ring: #ec3013;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  /* `--radius: 0` (style "Modernist", pas de coins arrondis) : dériver via
+     `calc(var(--radius) - 4px)` donnerait des valeurs NÉGATIVES (-4px, -2px)
+     plutôt que 0 — les 3 paliers sont donc fixés explicitement à 0 au lieu
+     d'être calculés depuis --radius. */
+  --radius-sm: 0rem;
+  --radius-md: 0rem;
+  --radius-lg: 0rem;
+
+  /* Police générale de l'app (voir index.html pour le chargement Google
+     Fonts) — redéfinit le token `--font-sans` consommé par Tailwind pour
+     TOUTES les classes `font-sans`/le corps par défaut, pas seulement le
+     wordmark "NEXUS AI" (Sidebar.tsx en hérite automatiquement, aucune
+     classe `font-*` à changer là-bas). Repli sur le sans-serif système si
+     Orbitron ne charge pas (réseau coupé, etc.). */
+  --font-sans: "Orbitron", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+}

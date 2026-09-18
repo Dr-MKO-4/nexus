@@ -1,0 +1,32 @@
+# Provisioning automatique de la datasource Prometheus  Prompt 6.3.
+#
+# Chemin de montage réel : Grafana ne scanne QUE
+# <provisioning>/datasources/*.yaml (sous-dossier dédié), jamais un fichier
+# posé directement à la racine de `provisioning/`  ce fichier vit à
+# `infrastructure/grafana/datasources.yml` (chemin littéral du spec), mais
+# docker-compose.yml le monte explicitement sur
+# `/etc/grafana/provisioning/datasources/datasources.yml` (bind mount
+# dédié, en plus du montage générique du dossier `infrastructure/grafana`
+# pour les dashboards) pour qu'il soit réellement pris en compte par
+# Grafana au démarrage  sans ce montage spécifique, ce fichier serait
+# silencieusement ignoré malgré un nom et un contenu corrects.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s
+
+# Variables de dashboard (spec : "environment, client_id") : Grafana ne
+# provisionne PAS les variables de template via ce fichier de datasource
+# (aucun champ prévu à cet effet dans le schéma `datasources.yml`  vérifié
+# contre le schéma de provisioning documenté de Grafana, qui ne couvre que
+# les datasources elles-mêmes)  les variables de dashboard sont définies
+# directement dans le JSON de chaque dashboard (voir
+# `dashboards/*.json`, bloc `templating.list`), pas ici.

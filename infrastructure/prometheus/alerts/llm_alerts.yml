@@ -1,0 +1,52 @@
+# Alertes LLM  Prompt 6.3. Métriques réelles de metrics_exporter.py.
+
+groups:
+  - name: nexus_llm_alerts
+    rules:
+      - alert: LLMCostBudgetExceeded
+        # Seuil de coût journalier codé en dur (40 USD = 80% d'un budget de
+        # référence de 50 USD/jour) : `settings.py` ne définit aucune valeur
+        # de budget LLM journalier configurable à ce jour (recherché,
+        # absent)  valeur de repli explicite, PAS une valeur du spec, à
+        # ajuster ici (ou à rendre configurable via un futur `LLM_DAILY_
+        # BUDGET_USD` dans settings.py, hors périmètre de ce prompt
+        # infra-only) selon le budget réel négocié par client.
+        expr: sum(increase(nexus_llm_cost_usd_total[24h])) > 40
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Budget LLM journalier à 80% du seuil de référence"
+          description: "Coût LLM cumulé sur 24h : {{ $value | humanize }} USD (seuil de référence : 40 USD = 80% de 50 USD/jour)."
+
+      - alert: LLMHighLatency
+        expr: histogram_quantile(0.95, sum by (le, model) (rate(nexus_llm_latency_seconds_bucket[5m]))) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latence p95 élevée pour le modèle {{ $labels.model }}"
+          description: "Latence p95 de {{ $value | humanizeDuration }} sur 5 minutes pour le modèle {{ $labels.model }} (seuil : 30s)."
+
+      - alert: LLMProviderDown
+        # Fournisseur primaire par défaut de `settings.API_PRIMARY_PROVIDER`
+        # ("groq")  verrouillé en dur ici car les règles d'alerte
+        # Prometheus statiques ne peuvent pas lire la config applicative
+        # dynamique ; à mettre à jour manuellement si `API_PRIMARY_PROVIDER`
+        # change de valeur en production.
+        expr: absent_over_time(nexus_llm_requests_total{provider="groq"}[10m])
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Fournisseur LLM primaire (groq) indisponible"
+          description: "Aucune requête LLM réussie vers le fournisseur primaire depuis 10 minutes."
+
+      - alert: LLMTokenRateHigh
+        expr: sum(rate(nexus_llm_tokens_total[1h]) * 3600) > 1000000
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "Débit de tokens LLM élevé"
+          description: "{{ $value | humanize }} tokens/heure consommés tous modèles confondus (seuil : 1M/heure)."

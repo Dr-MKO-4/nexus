@@ -1,0 +1,48 @@
+# Alertes agents  Prompt 6.3. Références des métriques réelles définies
+# dans backend/core/monitoring/metrics_exporter.py (Prompt 6.2) : aucun nom
+# de métrique inventé ci-dessous.
+
+groups:
+  - name: nexus_agent_alerts
+    rules:
+      - alert: AgentDown
+        # `absent_over_time` sur la famille entière (pas par label `agent`) :
+        # aucune limite fine pour détecter UN agent spécifique arrêté sans
+        # série temporelle "agent actif" dédiée  détecte le cas où PLUS
+        # AUCUN agent ne rapporte d'exécution depuis 5 min, cohérent avec le
+        # libellé littéral du spec ("aucune métrique d'agent depuis 5 min").
+        expr: absent_over_time(nexus_agent_executions_total[5m])
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Aucune métrique d'exécution d'agent NEXUS AI depuis 5 minutes"
+          description: "nexus_agent_executions_total n'a reçu aucun échantillon depuis au moins 5 minutes : tous les agents semblent arrêtés ou l'exporteur /metrics est injoignable."
+
+      - alert: AgentHighErrorRate
+        expr: |
+          (
+            sum by (agent) (rate(nexus_agent_errors_total[10m]))
+            /
+            sum by (agent) (rate(nexus_agent_executions_total[10m]))
+          ) > 0.10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Taux d'erreur élevé pour l'agent {{ $labels.agent }}"
+          description: "L'agent {{ $labels.agent }} a un taux d'erreur de {{ $value | humanizePercentage }} sur les 10 dernières minutes (seuil : 10%)."
+
+      - alert: HITLQueueFull
+        # `nexus_hitl_pending_total` (Gauge) ajouté à metrics_exporter.py
+        # pour ce prompt  voir sa docstring : aucun point d'appel réel ne
+        # l'alimente encore (hors périmètre des fichiers de ce prompt), la
+        # métrique reste donc à 0 tant que l'agent orchestrateur ne l'appelle
+        # pas depuis son propre code de gestion des `interrupt()` LangGraph.
+        expr: sum by (agent) (nexus_hitl_pending_total) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "File de validations humaines pleine pour l'agent {{ $labels.agent }}"
+          description: "{{ $value }} validations HITL en attente pour l'agent {{ $labels.agent }} (seuil : 10)."

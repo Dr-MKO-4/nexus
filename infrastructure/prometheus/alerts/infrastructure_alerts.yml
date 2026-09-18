@@ -1,0 +1,80 @@
+# Alertes infrastructure  Prompt 6.3. Noms de métriques standard des
+# exporteurs officiels (node_exporter, cAdvisor, redis_exporter,
+# postgres_exporter)  vérifiés contre les conventions documentées de ces
+# projets, pas inventés.
+
+groups:
+  - name: nexus_infrastructure_alerts
+    rules:
+      - alert: HighCPU
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU élevé sur {{ $labels.instance }}"
+          description: "Utilisation CPU de {{ $value | humanize }}% sur {{ $labels.instance }} (seuil : 85%)."
+
+      - alert: HighMemory
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "RAM élevée sur {{ $labels.instance }}"
+          description: "Utilisation RAM de {{ $value | humanize }}% sur {{ $labels.instance }} (seuil : 90%)."
+
+      - alert: DiskSpaceLow
+        expr: |
+          (
+            node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}
+            /
+            node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}
+          ) < 0.20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Espace disque faible sur {{ $labels.instance }} ({{ $labels.mountpoint }})"
+          description: "Il reste {{ $value | humanizePercentage }} d'espace disponible sur {{ $labels.mountpoint }} (seuil : 20%)."
+
+      - alert: RedisMemoryHigh
+        # Suppose `redis_config_maxmemory` > 0 (limite explicitement
+        # configurée)  le service `redis` de docker-compose.yml fixe
+        # désormais `--maxmemory 512mb` (ajouté avec ce prompt, voir
+        # docker-compose.yml) précisément pour que ce ratio soit
+        # significatif ; sans limite configurée, `redis_config_maxmemory`
+        # vaudrait 0 et cette expression ne serait jamais vraie (division
+        # par une limite "illimitée", pas une erreur silencieuse).
+        expr: redis_memory_used_bytes / redis_config_maxmemory > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Mémoire Redis élevée"
+          description: "Redis utilise {{ $value | humanizePercentage }} de sa limite maxmemory configurée (seuil : 80%)."
+
+      - alert: PostgresConnectionsHigh
+        expr: sum(pg_stat_activity_count) / scalar(pg_settings_max_connections) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Connexions PostgreSQL élevées"
+          description: "{{ $value | humanizePercentage }} des connexions PostgreSQL max sont utilisées (seuil : 80%)."
+
+      - alert: ContainerRestarting
+        # `changes()` (fonction PromQL standard) compte les changements de
+        # valeur de la jauge `container_start_time_seconds` (exposée par
+        # cAdvisor) sur la fenêtre  chaque redémarrage de conteneur change
+        # cette valeur, contrairement à un `increase()` qui exigerait un
+        # compteur monotone que cAdvisor n'expose pas nativement pour les
+        # redémarrages (pas de `container_restarts_total` dans cAdvisor,
+        # à la différence de kube-state-metrics en environnement Kubernetes).
+        expr: changes(container_start_time_seconds{name!=""}[10m]) > 3
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Conteneur {{ $labels.name }} redémarre en boucle"
+          description: "Le conteneur {{ $labels.name }} a redémarré {{ $value }} fois en 10 minutes (seuil : 3)."

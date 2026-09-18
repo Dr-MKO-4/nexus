@@ -1,0 +1,259 @@
+# ============================================================
+# NEXUS AI  Overrides de production
+# Usage : docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Objectif : limites de ressources, logging driver centralisé,
+# pas d'exposition des services internes sur l'hôte, restart
+# policy stricte.
+# ============================================================
+
+x-prod-logging: &prod-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+services:
+  langgraph_api:
+    <<: *prod-logging
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2g
+        reservations:
+          cpus: "0.5"
+          memory: 512m
+
+  celery_worker_llm:
+    <<: *prod-logging
+    restart: always
+    deploy:
+      replicas: 4
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2g
+
+  celery_worker_email:
+    <<: *prod-logging
+    restart: always
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1g
+
+  celery_worker_social:
+    <<: *prod-logging
+    restart: always
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1g
+
+  celery_worker_image:
+    <<: *prod-logging
+    restart: always
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8g
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  celery_worker_analytics:
+    <<: *prod-logging
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1g
+
+  celery_beat:
+    <<: *prod-logging
+    restart: always
+
+  pytorch_models:
+    <<: *prod-logging
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4g
+
+  flower:
+    <<: *prod-logging
+    restart: always
+    # Flower expose un dashboard d'admin  restreindre l'accès à un reverse proxy authentifié
+    ports: !reset []
+
+  # --- Bases de données : pas d'exposition directe sur l'hôte en production ---
+  postgres:
+    <<: *prod-logging
+    restart: always
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4g
+
+  redis:
+    <<: *prod-logging
+    restart: always
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1g
+
+  qdrant:
+    <<: *prod-logging
+    restart: always
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4g
+
+  vllm:
+    <<: *prod-logging
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 32g
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  matomo_db:
+    <<: *prod-logging
+    restart: always
+    ports: !reset []
+
+  matomo:
+    <<: *prod-logging
+    restart: always
+
+  mautic_db:
+    <<: *prod-logging
+    restart: always
+    ports: !reset []
+
+  mautic:
+    <<: *prod-logging
+    restart: always
+
+  n8n:
+    <<: *prod-logging
+    restart: always
+
+  searxng:
+    <<: *prod-logging
+    restart: always
+
+  comfyui:
+    <<: *prod-logging
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 16g
+
+  frontend:
+    <<: *prod-logging
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256m
+
+  nginx:
+    <<: *prod-logging
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512m
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  langfuse_web:
+    <<: *prod-logging
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1g
+
+  langfuse_worker:
+    <<: *prod-logging
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1g
+
+  prometheus:
+    <<: *prod-logging
+    restart: always
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 2g
+
+  grafana:
+    <<: *prod-logging
+    restart: always
+
+  alertmanager:
+    <<: *prod-logging
+    restart: always
+    ports: !reset []
+
+  cadvisor:
+    <<: *prod-logging
+    restart: always
+    ports: !reset []
+
+  node_exporter:
+    <<: *prod-logging
+    restart: always
+    ports: !reset []
+
+  redis_exporter:
+    <<: *prod-logging
+    restart: always
+    ports: !reset []
+
+  postgres_exporter:
+    <<: *prod-logging
+    restart: always
+    ports: !reset []

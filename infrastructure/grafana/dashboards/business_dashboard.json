@@ -1,0 +1,133 @@
+{
+  "title": "NEXUS AI  Tableau de bord Business",
+  "uid": "nexus-business",
+  "tags": ["nexus", "business"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": { "from": "now-7d", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": { "text": "Prometheus", "value": "Prometheus" }
+      },
+      {
+        "name": "client_id",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "query": "label_values(nexus_campaigns_active_total, client)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "description": "Nommée `client_id` (spec) mais interroge le label Prometheus réel `client` (voir nexus_campaigns_active_total dans metrics_exporter.py)  aucun label `client_id` n'existe sur les métriques exposées."
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Campagnes actives par client",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "sum by (client) (nexus_campaigns_active_total{client=~\"$client_id\"})",
+          "legendFormat": "{{ client }}",
+          "refId": "A"
+        }
+      ],
+      "description": "`nexus_campaigns_active_total` est un Counter Prometheus maintenu comme une jauge applicative via des deltas positifs uniquement (voir `set_active_campaigns` dans metrics_exporter.py) : ne peut refléter une BAISSE du nombre de campagnes actives tant que ce point de conception n'évolue pas  limite documentée, pas un bug de ce dashboard."
+    },
+    {
+      "id": 2,
+      "title": "Contenus générés par jour",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "sum by (type, platform) (increase(nexus_contents_generated_total[1d]))",
+          "legendFormat": "{{ type }} / {{ platform }}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Profondeur des queues Celery",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "nexus_queue_depth",
+          "legendFormat": "{{ queue }}",
+          "refId": "A"
+        }
+      ],
+      "description": "Métrique `nexus_queue_depth` (Gauge) du collecteur custom `QueueMetricsCollector` (backend/tasks/queues/task_monitor.py, Prompt 6.1)."
+    },
+    {
+      "id": 4,
+      "title": "Débit de tâches par worker",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "sum by (worker) (rate(flower_events_total{type=\"task-succeeded\"}[5m]))",
+          "legendFormat": "{{ worker }}",
+          "refId": "A"
+        }
+      ],
+      "description": "Débit de tâches réussies/seconde, par HOSTNAME de worker (métrique native de l'exporteur Prometheus intégré à Flower, job `celery_flower`  Flower ne labellise PAS ses métriques par nom de queue Celery). Mapping worker -> queue fixé par docker-compose.yml : celery_worker_llm=llm_inference, celery_worker_email=email_dispatch, celery_worker_social=social_publish, celery_worker_image=image_generation, celery_worker_analytics=analytics (queue seo_tasks partagée, voir marketing_worker.py)."
+    },
+    {
+      "id": 5,
+      "title": "Validations HITL en attente",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "sum by (agent) (nexus_hitl_pending_total)",
+          "legendFormat": "{{ agent }}",
+          "refId": "A"
+        }
+      ],
+      "description": "`nexus_hitl_pending_total` (Gauge, ajouté à metrics_exporter.py avec ce prompt)  reste à 0 tant qu'aucun point d'appel réel de `set_hitl_pending` n'existe (hors périmètre des fichiers de ce prompt, voir alerts/agent_alerts.yml)."
+    },
+    {
+      "id": 6,
+      "title": "Budget LLM consommé vs total (24h)",
+      "type": "bargauge",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "expr": "sum(increase(nexus_llm_cost_usd_total[24h]))", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "min": 0,
+          "max": 50,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 40 },
+              { "color": "red", "value": 50 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "description": "Budget de référence de 50 USD/jour codé en dur (même valeur de repli que LLMCostBudgetExceeded dans alerts/llm_alerts.yml  aucun budget configurable n'existe dans settings.py à ce jour)  à ajuster au budget réel négocié."
+    }
+  ]
+}

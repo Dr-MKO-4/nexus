@@ -1,0 +1,26 @@
+# Environnements  ne jamais committer de vrais secrets
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Logs
+logs/
+
+# Node / frontend
+node_modules/
+dist/
+build/
+
+# Éditeurs / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Checkpoints PyTorch entraînés (volumineux, régénérables via fit()/train())
+backend/pytorch_models/checkpoints/

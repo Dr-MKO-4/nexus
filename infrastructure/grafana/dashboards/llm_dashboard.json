@@ -1,0 +1,106 @@
+{
+  "title": "NEXUS AI  Monitoring LLM",
+  "uid": "nexus-llm",
+  "tags": ["nexus", "llm"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": { "text": "Prometheus", "value": "Prometheus" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Tokens/heure par modèle",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "sum by (model) (rate(nexus_llm_tokens_total[1h]) * 3600)",
+          "legendFormat": "{{ model }}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Coût journalier par provider (USD)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "sum by (provider) (increase(nexus_llm_cost_usd_total[24h]))",
+          "legendFormat": "{{ provider }}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" }, "overrides": [] }
+    },
+    {
+      "id": 3,
+      "title": "Latence p50/p95/p99 par modèle",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, model) (rate(nexus_llm_latency_seconds_bucket[5m])))",
+          "legendFormat": "p50 {{ model }}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, model) (rate(nexus_llm_latency_seconds_bucket[5m])))",
+          "legendFormat": "p95 {{ model }}",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, model) (rate(nexus_llm_latency_seconds_bucket[5m])))",
+          "legendFormat": "p99 {{ model }}",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] }
+    },
+    {
+      "id": 4,
+      "title": "Taux de succès par provider",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "sum by (provider) (rate(nexus_llm_requests_total{status=\"success\"}[10m])) / sum by (provider) (rate(nexus_llm_requests_total[10m]))",
+          "legendFormat": "{{ provider }}",
+          "refId": "A"
+        }
+      ],
+      "description": "Repose sur le label `status` de `nexus_llm_requests_total` (\"success\"/\"error\", défaut \"success\"), ajouté à `metrics_exporter.py` avec ce prompt spécifiquement pour rendre ce panel possible  absent avant Prompt 6.3.",
+      "fieldConfig": { "defaults": { "unit": "percentunit", "max": 1, "min": 0 }, "overrides": [] }
+    },
+    {
+      "id": 5,
+      "title": "Distribution des appels par agent",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "sum by (agent) (increase(nexus_llm_requests_total[24h]))",
+          "legendFormat": "{{ agent }}",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

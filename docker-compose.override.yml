@@ -1,0 +1,87 @@
+# ============================================================
+# NEXUS AI  Overrides de développement local
+# Chargé automatiquement par Docker Compose en complément de
+# docker-compose.yml (pas besoin de le spécifier avec -f).
+#
+# Objectif : hot reload du code, montage des sources en volume,
+# accès direct aux services internes pour le débogage.
+#
+# Note sur nginx : en dev, le frontend sert via Vite sur le port 5173
+# exposé directement (http://localhost:5173), pas via nginx (qui attend
+# un frontend sur le port 80, produit par le build de production). Utiliser
+# les ports directs (5173, 8000...) en dev ; nginx/le reverse proxy complet
+# se valide via `docker compose -f docker-compose.yml up` seul ou avec
+# docker-compose.prod.yml.
+# ============================================================
+
+services:
+  langgraph_api:
+    command: uvicorn backend.api.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app/backend
+    environment:
+      ENVIRONMENT: development
+
+  pytorch_models:
+    command: uvicorn backend.pytorch_models.main:app --host 0.0.0.0 --port 8001 --reload
+    volumes:
+      - ./backend:/app/backend
+
+  celery_worker_llm:
+    deploy:
+      replicas: 1
+    volumes:
+      - ./backend:/app/backend
+
+  celery_worker_email:
+    deploy:
+      replicas: 1
+    volumes:
+      - ./backend:/app/backend
+
+  celery_worker_social:
+    deploy:
+      replicas: 1
+    volumes:
+      - ./backend:/app/backend
+
+  celery_worker_analytics:
+    volumes:
+      - ./backend:/app/backend
+
+  celery_beat:
+    volumes:
+      - ./backend:/app/backend
+
+  # Frontend : serveur Vite avec hot reload plutôt que le build nginx statique de l'image de prod
+  frontend:
+    build:
+      target: build
+    command: npm run dev -- --host 0.0.0.0 --port 5173
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    # Le healthcheck de base cible nginx (port 80, stage "production") ; en dev
+    # le serveur Vite tourne directement sur 5173 sans nginx devant.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5173/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # Accès direct aux bases de données depuis l'hôte pour inspection (DBeaver, psql, redis-cli…)
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  qdrant:
+    ports:
+      - "6333:6333"
+      - "6334:6334"

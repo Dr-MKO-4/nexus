@@ -1,0 +1,58 @@
+# Dépendances communes à tous les environnements (API, agents, workers Celery).
+
+langgraph>=1.0.0
+# Checkpointer PostgresSaver (Prompt 4.2)  absent de la liste initiale du
+# Prompt 1.4. Utilise psycopg (v3), pas asyncpg : driver distinct de celui de
+# SQLAlchemy (asyncpg, voir ligne ci-dessous), imposé par ce package.
+langgraph-checkpoint-postgres>=2.0.0
+psycopg[binary,pool]>=3.1.0
+langchain>=0.3.0
+langchain-community>=0.3.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
+celery[redis]>=5.6.0
+# Sérialisation des gros payloads de tâches Celery (Prompt 6.1)  présent
+# transitivement via une autre dépendance dans certains environnements, mais
+# jamais garanti : listé explicitement puisque `celery_app.py` l'active dans
+# `accept_content`.
+msgpack>=1.0.0
+redis>=5.2.0
+psycopg2-binary>=2.9.0
+# Driver async requis par SQLAlchemy AsyncSession (Prompt 2.1)  absent de la
+# liste initiale du Prompt 1.4, qui ne couvrait que psycopg2 (sync/Alembic offline).
+asyncpg>=0.30.0
+sqlalchemy>=2.0.0
+alembic>=1.14.0
+qdrant-client>=1.12.0
+litellm>=1.55.0
+# Sortie structurée (complete_structured, Prompt 3.1)  utilisé dès
+# llm_client.py mais absent de la liste initiale du Prompt 1.4.
+instructor>=1.7.0
+langfuse>=3.0.0
+httpx>=0.28.0
+# Parsing HTML (audit technique SEO, extraction de contenu)  Prompt 5.1.
+beautifulsoup4>=4.12.0
+lxml>=5.1.0
+python-multipart>=0.0.18
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+# Épinglage nécessaire (pas une préférence) : passlib 1.7.4 (dernière release,
+# non maintenue depuis 2020) détecte la version de bcrypt via
+# `bcrypt.__about__.__version__`, retiré dans bcrypt>=4.1  casse RÉELLEMENT
+# `CryptContext(schemes=["bcrypt"]).hash(...)` avec `AttributeError` puis
+# `ValueError: password cannot be longer than 72 bytes` (reproduit dans ce
+# sandbox avec bcrypt 5.0.0, corrigé en rétrogradant vers cette plage).
+bcrypt<4.1.0
+websockets>=14.0
+sse-starlette>=2.1.0
+structlog>=24.4.0
+# Métriques custom exposées pour Prometheus (Prompt 6.1,
+# tasks/queues/task_monitor.py: QueueMetricsCollector).
+prometheus-client>=0.21.0
+# Génération d'images de guidance ControlNet (Prompt 5.7,
+# tools/creative/style_transfer.py)  bibliothèque légère (pas de dépendance
+# GPU/CUDA, contrairement à torch/diffusers de requirements/ml.txt), donc
+# incluse ici plutôt que dans l'image ml séparée.
+pillow>=11.0.0

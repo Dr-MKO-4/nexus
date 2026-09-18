@@ -1,0 +1,689 @@
+# ============================================================
+# NEXUS AI  Docker Compose (base commune à tous les environnements)
+#
+# Usage :
+#   - Développement : docker compose -f docker-compose.yml -f docker-compose.override.yml up
+#     (docker-compose.override.yml est chargé automatiquement par défaut par Docker Compose)
+#   - Production     : docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Les services GPU (vllm, celery_worker_image, comfyui) sont dans le
+# profil "gpu" et nécessitent le NVIDIA Container Toolkit sur l'hôte :
+#   docker compose --profile gpu up
+# ============================================================
+
+networks:
+  nexus_network:
+    name: nexus_network
+    driver: bridge
+
+volumes:
+  nexus_postgres_data:
+    name: nexus_postgres_data
+  nexus_redis_data:
+    name: nexus_redis_data
+  nexus_qdrant_data:
+    name: nexus_qdrant_data
+  nexus_vllm_cache:
+    name: nexus_vllm_cache
+  nexus_matomo_data:
+    name: nexus_matomo_data
+  nexus_matomo_db_data:
+    name: nexus_matomo_db_data
+  nexus_mautic_data:
+    name: nexus_mautic_data
+  nexus_mautic_db_data:
+    name: nexus_mautic_db_data
+  nexus_n8n_data:
+    name: nexus_n8n_data
+  nexus_comfyui_data:
+    name: nexus_comfyui_data
+  nexus_prometheus_data:
+    name: nexus_prometheus_data
+  nexus_grafana_data:
+    name: nexus_grafana_data
+  nexus_alertmanager_data:
+    name: nexus_alertmanager_data
+
+x-backend-build: &backend-build
+  context: ./backend
+  dockerfile: Dockerfile
+
+x-backend-common: &backend-common
+  build: *backend-build
+  # backend/Dockerfile fixe ENTRYPOINT à "uvicorn" (spec Dockerfile de production) ;
+  # on le neutralise ici pour que `command:` définisse librement le process
+  # de chaque service (uvicorn pour l'API, celery pour les workers/beat).
+  entrypoint: []
+  env_file: .env
+  networks: [nexus_network]
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  # ============================================================
+  # BACKEND
+  # ============================================================
+
+  langgraph_api:
+    <<: *backend-common
+    container_name: nexus_langgraph_api
+    command: uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  celery_worker_llm:
+    <<: *backend-common
+    container_name: nexus_celery_worker_llm
+    command: celery -A backend.tasks.celery_app worker -Q llm_inference --loglevel=info
+    deploy:
+      replicas: 2
+    healthcheck:
+      test: ["CMD", "celery", "-A", "backend.tasks.celery_app", "inspect", "ping", "-d", "celery@$$HOSTNAME"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  celery_worker_email:
+    <<: *backend-common
+    container_name: nexus_celery_worker_email
+    command: celery -A backend.tasks.celery_app worker -Q email_dispatch --concurrency=2 --loglevel=info
+    deploy:
+      replicas: 2
+    healthcheck:
+      test: ["CMD", "celery", "-A", "backend.tasks.celery_app", "inspect", "ping", "-d", "celery@$$HOSTNAME"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  celery_worker_social:
+    <<: *backend-common
+    container_name: nexus_celery_worker_social
+    command: celery -A backend.tasks.celery_app worker -Q social_publish --concurrency=2 --loglevel=info
+    deploy:
+      replicas: 2
+    healthcheck:
+      test: ["CMD", "celery", "-A", "backend.tasks.celery_app", "inspect", "ping", "-d", "celery@$$HOSTNAME"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  celery_worker_image:
+    <<: *backend-common
+    container_name: nexus_celery_worker_image
+    command: celery -A backend.tasks.celery_app worker -Q image_generation --concurrency=1 --loglevel=info
+    profiles: ["gpu"]
+    deploy:
+      replicas: 1
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "celery", "-A", "backend.tasks.celery_app", "inspect", "ping", "-d", "celery@$$HOSTNAME"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  celery_worker_analytics:
+    <<: *backend-common
+    container_name: nexus_celery_worker_analytics
+    command: celery -A backend.tasks.celery_app worker -Q analytics --concurrency=1 --loglevel=info
+    healthcheck:
+      test: ["CMD", "celery", "-A", "backend.tasks.celery_app", "inspect", "ping", "-d", "celery@$$HOSTNAME"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  celery_beat:
+    <<: *backend-common
+    container_name: nexus_celery_beat
+    command: celery -A backend.tasks.celery_app beat --loglevel=info
+
+  pytorch_models:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.ml
+    container_name: nexus_pytorch_models
+    # entrypoint neutralisé (voir commentaire sur x-backend-common) : Dockerfile.ml
+    # fixe aussi ENTRYPOINT à "uvicorn", nécessaire pour que l'override --reload
+    # du dev (docker-compose.override.yml) fonctionne sans dupliquer "uvicorn".
+    entrypoint: []
+    command: uvicorn backend.pytorch_models.main:app --host 0.0.0.0 --port 8001
+    env_file: .env
+    networks: [nexus_network]
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  flower:
+    image: mher/flower:2.0
+    container_name: nexus_flower
+    env_file: .env
+    environment:
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+      FLOWER_PORT: 5555
+    networks: [nexus_network]
+    restart: unless-stopped
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5555"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ============================================================
+  # INFRASTRUCTURE
+  # ============================================================
+
+  postgres:
+    image: postgres:16
+    container_name: nexus_postgres
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    networks: [nexus_network]
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    volumes:
+      - nexus_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: nexus_redis
+    # `--maxmemory` ajouté pour Prompt 6.3 : sans limite configurée,
+    # `redis_config_maxmemory` (exporté par redis_exporter) vaut 0 et
+    # l'alerte RedisMemoryHigh (infrastructure_alerts.yml) ne peut jamais se
+    # déclencher (division par une limite "illimitée"). Politique
+    # `noeviction` (PAS `allkeys-lru`) : ce Redis sert aussi de broker
+    # Celery (kombu)  une politique d'éviction silencieuse perdrait des
+    # messages de tâche en file d'attente sous pression mémoire ; en
+    # `noeviction`, Redis refuse les écritures avec une erreur explicite au
+    # lieu de supprimer des données au hasard, plus sûr pour un broker.
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy noeviction
+    networks: [nexus_network]
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - nexus_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  redis_exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: nexus_redis_exporter
+    environment:
+      REDIS_ADDR: "redis://redis:6379"
+    networks: [nexus_network]
+    restart: unless-stopped
+    ports:
+      - "9121:9121"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: nexus_postgres_exporter
+    env_file: .env
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
+    networks: [nexus_network]
+    restart: unless-stopped
+    ports:
+      - "9187:9187"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: nexus_qdrant
+    networks: [nexus_network]
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - nexus_qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333' 2>/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  vllm:
+    image: vllm/vllm-openai:latest
+    container_name: nexus_vllm
+    profiles: ["gpu"]
+    env_file: .env
+    command: --model ${LOCAL_DEFAULT_MODEL} --host 0.0.0.0 --port 8000
+    networks: [nexus_network]
+    restart: unless-stopped
+    # Port hôte 8080 (documenté)  port conteneur natif 8000 (API OpenAI-compatible de vLLM)
+    ports:
+      - "8080:8000"
+    volumes:
+      - nexus_vllm_cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ============================================================
+  # MARKETING
+  # ============================================================
+
+  matomo_db:
+    image: mysql:8
+    container_name: nexus_matomo_db
+    env_file: .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MATOMO_DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MATOMO_DB_NAME}
+      MYSQL_USER: ${MATOMO_DB_USER}
+      MYSQL_PASSWORD: ${MATOMO_DB_PASSWORD}
+    networks: [nexus_network]
+    restart: unless-stopped
+    volumes:
+      - nexus_matomo_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MATOMO_DB_ROOT_PASSWORD}"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  matomo:
+    image: matomo:latest
+    container_name: nexus_matomo
+    env_file: .env
+    environment:
+      MATOMO_DATABASE_HOST: matomo_db
+      MATOMO_DATABASE_DBNAME: ${MATOMO_DB_NAME}
+      MATOMO_DATABASE_USERNAME: ${MATOMO_DB_USER}
+      MATOMO_DATABASE_PASSWORD: ${MATOMO_DB_PASSWORD}
+    networks: [nexus_network]
+    restart: unless-stopped
+    ports:
+      - "8888:80"
+    volumes:
+      - nexus_matomo_data:/var/www/html
+    depends_on:
+      matomo_db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/matomo.php"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  mautic_db:
+    image: mysql:8
+    container_name: nexus_mautic_db
+    env_file: .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MAUTIC_DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MAUTIC_DB_NAME}
+      MYSQL_USER: ${MAUTIC_DB_USER}
+      MYSQL_PASSWORD: ${MAUTIC_DB_PASSWORD}
+    networks: [nexus_network]
+    restart: unless-stopped
+    volumes:
+      - nexus_mautic_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MAUTIC_DB_ROOT_PASSWORD}"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  mautic:
+    image: mautic/mautic:latest
+    container_name: nexus_mautic
+    env_file: .env
+    environment:
+      MAUTIC_DB_HOST: mautic_db
+      MAUTIC_DB_NAME: ${MAUTIC_DB_NAME}
+      MAUTIC_DB_USER: ${MAUTIC_DB_USER}
+      MAUTIC_DB_PASSWORD: ${MAUTIC_DB_PASSWORD}
+    networks: [nexus_network]
+    restart: unless-stopped
+    ports:
+      - "8889:80"
+    volumes:
+      - nexus_mautic_data:/var/www/html
+    depends_on:
+      mautic_db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/s/login"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: nexus_n8n
+    env_file: .env
+    environment:
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD}
+    networks: [nexus_network]
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    volumes:
+      - nexus_n8n_data:/home/node/.n8n
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5678/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: nexus_searxng
+    networks: [nexus_network]
+    restart: unless-stopped
+    # Port conteneur natif 8080  remappé sur l'hôte pour éviter le conflit avec vllm/cadvisor
+    ports:
+      - "8083:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  comfyui:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/comfyui/Dockerfile
+    container_name: nexus_comfyui
+    profiles: ["gpu"]
+    networks: [nexus_network]
+    restart: unless-stopped
+    ports:
+      - "8188:8188"
+    volumes:
+      - nexus_comfyui_data:/app/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8188"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ============================================================
+  # FRONTEND & REVERSE PROXY
+  # ============================================================
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nexus_frontend
+    networks: [nexus_network]
+    restart: unless-stopped
+    # Pas de port exposé sur l'hôte : accessible uniquement via le reverse proxy nginx.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  nginx:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/nginx/Dockerfile
+    container_name: nexus_nginx
+    networks: [nexus_network]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/locations.conf:/etc/nginx/conf.d/locations.conf:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+      langgraph_api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ============================================================
+  # MONITORING
+  # ============================================================
+
+  langfuse_web:
+    image: langfuse/langfuse:latest
+    container_name: nexus_langfuse_web
+    env_file: .env
+    environment:
+      DATABASE_URL: ${LANGFUSE_DATABASE_URL}
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET}
+      SALT: ${LANGFUSE_SALT}
+      NEXTAUTH_URL: ${LANGFUSE_HOST}
+    networks: [nexus_network]
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/public/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  langfuse_worker:
+    image: langfuse/langfuse:latest
+    container_name: nexus_langfuse_worker
+    env_file: .env
+    environment:
+      DATABASE_URL: ${LANGFUSE_DATABASE_URL}
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET}
+      SALT: ${LANGFUSE_SALT}
+      LANGFUSE_WORKER_MODE: "true"
+    command: node worker/dist/index.js
+    networks: [nexus_network]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: nexus_prometheus
+    # Prompt 6.3 : `command:` explicite requis pour la rétention de 30 jours
+    # du spec (défaut de l'image : 15 jours) et pour recharger la config à
+    # chaud (`--web.enable-lifecycle`, utilisé par `promtool`/CI pour
+    # valider un reload sans recréer le conteneur).
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    networks: [nexus_network]
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      # Dossier complet (pas le seul fichier prometheus.yml) : les règles
+      # d'alerte de infrastructure/prometheus/alerts/*.yml doivent être
+      # visibles à côté de prometheus.yml pour que `rule_files:
+      # /etc/prometheus/alerts/*.yml` les résolve (voir ce fichier).
+      - ./infrastructure/prometheus:/etc/prometheus:ro
+      - nexus_prometheus_data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: nexus_grafana
+    env_file: .env
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+    networks: [nexus_network]
+    restart: unless-stopped
+    # Port conteneur natif 3000  mappé sur 3002 côté hôte pour ne pas entrer en conflit avec langfuse_web
+    ports:
+      - "3002:3000"
+    volumes:
+      - nexus_grafana_data:/var/lib/grafana
+      - ./infrastructure/grafana:/etc/grafana/provisioning:ro
+      # Bind mount dédié : Grafana ne scanne que
+      # <provisioning>/datasources/*.yaml (sous-dossier), jamais un fichier
+      # posé à la racine de `provisioning/`  le montage générique
+      # ci-dessus place `datasources.yml` à `/etc/grafana/provisioning/
+      # datasources.yml`, jamais lu. Voir infrastructure/grafana/
+      # datasources.yml pour la justification complète.
+      - ./infrastructure/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: nexus_alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    networks: [nexus_network]
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./infrastructure/prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - nexus_alertmanager_data:/alertmanager
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9093/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: nexus_cadvisor
+    networks: [nexus_network]
+    restart: unless-stopped
+    # Port conteneur natif 8080  remappé sur l'hôte pour éviter le conflit avec vllm/searxng
+    ports:
+      - "8082:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: nexus_node_exporter
+    networks: [nexus_network]
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9100/metrics"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

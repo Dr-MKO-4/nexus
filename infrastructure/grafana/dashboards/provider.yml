@@ -1,0 +1,25 @@
+# Descripteur de provisioning des dashboards  ajouté pour ce prompt, en
+# complément des 3 fichiers JSON explicitement listés par le spec.
+#
+# Grafana exige un descripteur `*.yaml`/`*.yml` sous
+# <provisioning>/dashboards/ pour charger AUTOMATIQUEMENT des JSON de
+# dashboard ("provisionnés automatiquement", spec)  sans lui, les 3 fichiers
+# operational_dashboard.json/llm_dashboard.json/business_dashboard.json
+# posés à côté resteraient de simples fichiers inertes, jamais chargés par
+# Grafana au démarrage. Ce fichier est un `*.yml` (scanné comme descripteur
+# de provider), les `*.json` du même dossier ne le sont pas (ignorés par ce
+# scan, chargés séparément par le provider ci-dessous via son `path:`).
+
+apiVersion: 1
+
+providers:
+  - name: nexus-dashboards
+    orgId: 1
+    folder: "NEXUS AI"
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

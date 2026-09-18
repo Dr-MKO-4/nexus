@@ -1,0 +1,80 @@
+# Configuration de scraping Prometheus pour la stack NEXUS AI  Prompt 6.3.
+#
+# Renommage : le spec préfixe le job applicatif `lidia_api` et le label
+# `project=lidia`  LIDIA renommé NEXUS AI plus tôt dans le projet (voir
+# `NexusLLMClient`, `nexus_*` dans metrics_exporter.py/task_monitor.py) ->
+# job `nexus_api`, label `project: nexus` ci-dessous.
+#
+# Note (limite réelle, pas une supposition) : Prometheus ne supporte AUCUNE
+# substitution de variable d'environnement dans son fichier de config
+# statique (contrairement à docker-compose)  `environment` ci-dessous est
+# donc une valeur fixe en dur, à adapter manuellement (ou via un template
+# généré en CI) pour un déploiement staging/prod distinct.
+#
+# Cibles de scrape : noms de service Docker Compose réels (voir
+# docker-compose.yml), résolus via le DNS interne du réseau nexus_network.
+# `nexus_api` cible le service `langgraph_api` (nom de conteneur historique,
+# distinct du nom de job Prometheus qui suit la convention de nommage
+# métier du projet).
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: development
+    project: nexus
+
+rule_files:
+  - "/etc/prometheus/alerts/*.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "nexus_api"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["langgraph_api:8000"]
+
+  - job_name: "pytorch_models"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["pytorch_models:8001"]
+
+  - job_name: "celery_flower"
+    static_configs:
+      - targets: ["flower:5555"]
+
+  - job_name: "redis"
+    static_configs:
+      - targets: ["redis_exporter:9121"]
+
+  - job_name: "postgres"
+    static_configs:
+      - targets: ["postgres_exporter:9187"]
+
+  - job_name: "cadvisor"
+    # Port CONTENEUR natif (8080), pas le port hôte remappé (8082, voir
+    # docker-compose.yml)  le scrape se fait sur le réseau Docker interne.
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+  - job_name: "node_exporter"
+    static_configs:
+      - targets: ["node_exporter:9100"]
+
+  - job_name: "vllm"
+    # "si mode local" (spec) : le service `vllm` de docker-compose.yml n'est
+    # démarré qu'en mode inférence locale ; cette cible apparaît "down" dans
+    # Prometheus le reste du temps, comportement attendu et documenté plutôt
+    # qu'une cible retirée silencieusement. Port CONTENEUR natif 8000 (voir
+    # mapping "8080:8000" dans docker-compose.yml), pas 8080.
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["vllm:8000"]

@@ -1,0 +1,108 @@
+{
+  "title": "NEXUS AI  Tableau de bord opérationnel",
+  "uid": "nexus-operational",
+  "tags": ["nexus", "operational"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": { "text": "Prometheus", "value": "Prometheus" }
+      },
+      {
+        "name": "environment",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "query": "label_values(up, job)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Statut des containers (cibles scrapées)",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "expr": "up", "format": "table", "instant": true, "refId": "A" }
+      ],
+      "description": "Statut up/down (1/0) de chaque job scrapé par Prometheus  couvre les services applicatifs exposant /metrics (nexus_api, pytorch_models, celery_flower, redis, postgres, cadvisor, node_exporter, vllm), pas les containers sans exporteur propre (ceux-ci apparaissent uniquement via cAdvisor, panel ci-dessous)."
+    },
+    {
+      "id": 2,
+      "title": "Containers vus par cAdvisor (dernière activité)",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "expr": "container_last_seen{name!=\"\"}", "format": "table", "instant": true, "refId": "A" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "CPU global (hôte)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "legendFormat": "{{ instance }}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100 }, "overrides": [] }
+    },
+    {
+      "id": 4,
+      "title": "RAM globale (hôte)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+          "legendFormat": "{{ instance }}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "max": 100 }, "overrides": [] }
+    },
+    {
+      "id": 5,
+      "title": "Alertes actives",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        { "expr": "ALERTS{alertstate=\"firing\"}", "format": "table", "instant": true, "refId": "A" }
+      ],
+      "description": "Métrique interne `ALERTS` générée par le moteur d'évaluation de règles de Prometheus lui-même (pas un exporteur externe)  une série par alerte en état `firing`."
+    },
+    {
+      "id": 6,
+      "title": "Redémarrages de containers (24h)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "changes(container_start_time_seconds{name!=\"\"}[24h])",
+          "legendFormat": "{{ name }}",
+          "refId": "A"
+        }
+      ],
+      "description": "Voir infrastructure/prometheus/alerts/infrastructure_alerts.yml (ContainerRestarting) pour la justification de `changes()` sur cette jauge cAdvisor plutôt qu'un compteur dédié (absent de cAdvisor)."
+    }
+  ]
+}
