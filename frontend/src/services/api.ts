@@ -29,10 +29,19 @@ import type {
   UserRole as UserRoleValue,
 } from "@/types";
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "./tokenStorage";
+import { DEMO } from "@/demo/flag";
+import { demoAdapter } from "@/demo/adapter";
 
 const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 export const apiClient = axios.create({ baseURL: API_BASE_URL });
+
+// Branche demo : toutes les requêtes (y compris login/refresh faits avec
+// `axios` directement) sont servies par la simulation en mémoire.
+if (DEMO) {
+  axios.defaults.adapter = demoAdapter;
+  apiClient.defaults.adapter = demoAdapter;
+}
 
 // ── Intercepteur de requête : injection du JWT ──────────────────────────────
 

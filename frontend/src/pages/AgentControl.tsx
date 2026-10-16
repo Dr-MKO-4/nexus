@@ -5,6 +5,19 @@ import { ActivityFeed, AgentGraphVisualizer } from "@/components/realtime";
 import { useAgentLogs, useAgents, useCanMutate, useCanViewAgentLogs } from "@/hooks";
 import { triggerAgent } from "@/services/api";
 import { getAgentDisplayStatus, type Agent } from "@/types";
+import { DEMO } from "@/demo/flag";
+
+/** Démo : payload d'exemple pré-rempli avec les kwargs attendus. */
+const DEMO_KWARGS: Record<string, unknown> = {
+  client_id: "3f6b2a10-6c1e-4a51-9d1e-1c0de0000001",
+  brief: "Post LinkedIn sur la formule brunch",
+  content_id: "exemple",
+  platforms: ["linkedin"],
+  contact_ids: ["contact-1", "contact-2"],
+  sequence_name: "bienvenue",
+  period: "7d",
+  campaign_id: null,
+};
 
 /**
  * Groupement par cluster  miroir EXACT de `_ACQUISITION_AGENTS`/
@@ -22,7 +35,9 @@ const CLUSTERS: Record<string, string[]> = {
 };
 
 function TriggerDialog({ agent, onClose }: { agent: Agent; onClose: () => void }) {
-  const [raw, setRaw] = useState("{}");
+  const [raw, setRaw] = useState(() =>
+    DEMO ? JSON.stringify(Object.fromEntries(agent.expected_trigger_kwargs.map((k) => [k, DEMO_KWARGS[k] ?? {}])), null, 2) : "{}",
+  );
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
 

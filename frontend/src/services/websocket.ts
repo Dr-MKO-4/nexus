@@ -18,6 +18,8 @@
  */
 
 import { EventType, type WebSocketMessage } from "@/types";
+import { DEMO } from "@/demo/flag";
+import { DemoWebSocketService } from "@/demo/socket";
 
 type Listener = (message: WebSocketMessage) => void;
 export type ConnectionStatus = "connected" | "connecting" | "disconnected";
@@ -186,4 +188,6 @@ class WebSocketService {
   }
 }
 
-export const websocketService = new WebSocketService();
+export const websocketService: WebSocketService = DEMO
+  ? (new DemoWebSocketService() as unknown as WebSocketService)
+  : new WebSocketService();

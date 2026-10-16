@@ -6,6 +6,8 @@ import { LoadingState } from "@/components/ui";
 import { useApplyTheme } from "@/hooks";
 import Login from "@/pages/Login";
 import { useAuthStore } from "@/store";
+import { DEMO } from "@/demo/flag";
+import DemoBanner from "@/demo/DemoBanner";
 
 // "Chargement lazy des pages" (spec)  un chunk séparé par page plutôt que
 // tout regroupé dans le bundle principal (déjà signalé par Vite comme trop
@@ -40,13 +42,14 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      {DEMO && <DemoBanner />}
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route
           element={
-            // <RequireAuth>
+            <RequireAuth>
               <AppLayout />
-            // </RequireAuth>
+            </RequireAuth>
           }
         >
           <Route path="/" element={<LazyPage><Dashboard /></LazyPage>} />
