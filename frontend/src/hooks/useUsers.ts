@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createUser, getUsers, updateUser, type CreateUserPayload } from "@/services/api";
 import type { User, UserRole } from "@/types";
 
-/** GET/POST/PATCH /users — Settings.tsx (section "Utilisateurs") gérait une
+/** GET/POST/PATCH /users Settings.tsx (section "Utilisateurs") gérait une
  * liste en useState LOCAL uniquement avant ce correctif (audit). */
 export function useUsers(clientId: string | undefined) {
   return useQuery<User[]>({

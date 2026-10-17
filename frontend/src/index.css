@@ -3,13 +3,13 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /**
- * Variables CSS shadcn/ui — palette "Modernist" alignée sur le logo réel
+ * Variables CSS shadcn/ui palette "Modernist" alignée sur le logo réel
  * (`public/logo_nexus.png` : réseau géométrique noir charbon avec un cœur
  * hexagonal rouge/orangé) et sur `docs/LISEZ-MOI.md` (fond #f3f2f2, texte
  * #201e1d, accent rouge #ec3013). Corrigé ici : plusieurs composants
  * (Sidebar, Header, Login) référençaient déjà `bg-primary`/`border-l-primary`
  * en s'attendant à du rouge, alors que `--primary` valait encore le noir/blanc
- * neutre par défaut de shadcn — aucune de ces classes ne rendait la bonne
+ * neutre par défaut de shadcn aucune de ces classes ne rendait la bonne
  * couleur avant ce correctif.
  */
 :root {
@@ -84,14 +84,14 @@
   --color-ring: var(--ring);
   /* `--radius: 0` (style "Modernist", pas de coins arrondis) : dériver via
      `calc(var(--radius) - 4px)` donnerait des valeurs NÉGATIVES (-4px, -2px)
-     plutôt que 0 — les 3 paliers sont donc fixés explicitement à 0 au lieu
+     plutôt que 0 les 3 paliers sont donc fixés explicitement à 0 au lieu
      d'être calculés depuis --radius. */
   --radius-sm: 0rem;
   --radius-md: 0rem;
   --radius-lg: 0rem;
 
   /* Police générale de l'app (voir index.html pour le chargement Google
-     Fonts) — redéfinit le token `--font-sans` consommé par Tailwind pour
+     Fonts) redéfinit le token `--font-sans` consommé par Tailwind pour
      TOUTES les classes `font-sans`/le corps par défaut, pas seulement le
      wordmark "NEXUS AI" (Sidebar.tsx en hérite automatiquement, aucune
      classe `font-*` à changer là-bas). Repli sur le sans-serif système si

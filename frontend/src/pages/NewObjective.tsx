@@ -11,7 +11,7 @@ import type { Campaign } from "@/types";
  * Interface conversationnelle : l'utilisateur décrit un objectif en langage
  * naturel dans un fil de discussion, transmis à l'Orchestrateur
  * (POST /campaigns → MainGraph.run(), voir backend/api/routes/campaigns.py)
- * qui planifie et exécute seul — l'utilisateur n'intervient qu'au moment
+ * qui planifie et exécute seul l'utilisateur n'intervient qu'au moment
  * d'une validation HITL (page Validations).
  *
  * Aucun message "assistant" n'est un texte généré par un LLM conversationnel
@@ -44,9 +44,9 @@ export default function NewObjective() {
   const [activeCampaignId, setActiveCampaignId] = useState<string | undefined>(undefined);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Suit le statut de la campagne juste créée — poll court le temps que
+  // Suit le statut de la campagne juste créée poll court le temps que
   // l'orchestrateur avance (aucun événement WebSocket fiable pour ça :
-  // CAMPAIGN_UPDATE n'est émis par aucun code backend, voir l'audit — le
+  // CAMPAIGN_UPDATE n'est émis par aucun code backend, voir l'audit le
   // polling reste donc le seul mécanisme réel de suivi ici).
   const { data: liveCampaign } = useCampaign(activeCampaignId, {
     refetchInterval: (query) => (query.state.data?.status === "active" ? 3000 : false),
@@ -90,7 +90,7 @@ export default function NewObjective() {
   }
 
   if (!clientId) {
-    return <EmptyState message="Aucun client actif — aucun endpoint de liste des clients n'existe pour les comptes admin." />;
+    return <EmptyState message="Aucun client actif aucun endpoint de liste des clients n'existe pour les comptes admin." />;
   }
 
   if (!canMutate) {
@@ -106,7 +106,7 @@ export default function NewObjective() {
         </h1>
         <p className="mt-1 text-sm text-neutral-500">
           Décrivez votre objectif en langage naturel. L'Orchestrateur planifie et exécute automatiquement (SEO, SEA, contenu,
-          social, email, analytics...) — vous n'aurez qu'à valider si une décision importante nécessite votre accord.
+          social, email, analytics...) vous n'aurez qu'à valider si une décision importante nécessite votre accord.
         </p>
       </div>
 
@@ -187,7 +187,7 @@ function SystemMessage({ message }: { message: Extract<ChatMessage, { role: "sys
   if (campaign.status === "completed") {
     return (
       <div className="max-w-[80%] rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-300">
-        Campagne « {campaign.name} » terminée — consultez l'onglet Analyses pour les résultats.
+        Campagne « {campaign.name} » terminée consultez l'onglet Analyses pour les résultats.
       </div>
     );
   }

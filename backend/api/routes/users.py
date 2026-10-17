@@ -1,15 +1,15 @@
-"""Router users — gestion réelle des comptes.
+"""Router users gestion réelle des comptes.
 
 Corrige un écart trouvé lors d'un audit frontend/backend : Settings.tsx
 (section "Utilisateurs") gérait une liste d'utilisateurs en `useState` LOCAL
-uniquement — aucun appel réseau, rien n'était persisté, rien ne reflétait
+uniquement aucun appel réseau, rien n'était persisté, rien ne reflétait
 les vrais comptes en base. `UserRepository`/`User` (backend/db/repositories/
 user_repository.py, backend/db/models/users.py) existaient déjà avec tout le
 nécessaire (email, hashed_password, role, client_id, is_active) : ce router
 les expose enfin.
 
 Invitation (`POST /users`) : aucune infrastructure d'envoi d'email n'existe
-dans ce projet (pas de service SMTP/transactionnel configuré ailleurs) — un
+dans ce projet (pas de service SMTP/transactionnel configuré ailleurs) un
 mot de passe temporaire est donc généré et renvoyé UNE SEULE FOIS dans la
 réponse, à communiquer manuellement par l'admin/manager qui crée le compte.
 Documenté honnêtement comme limite plutôt que fabriquer un envoi d'email

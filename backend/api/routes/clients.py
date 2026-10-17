@@ -1,4 +1,4 @@
-"""Router clients — sélecteur admin + persistance réelle de "Marque client"
+"""Router clients sélecteur admin + persistance réelle de "Marque client"
 et "Intégrations".
 
 Corrige deux écarts trouvés lors d'un audit frontend/backend :

@@ -101,7 +101,7 @@ export default function Analytics() {
             {reports.data.map((report) => (
               <li key={report.id} className="flex justify-between border-b border-neutral-100 py-1 dark:border-neutral-900">
                 <button type="button" className="text-left underline-offset-2 hover:underline" onClick={() => setOpenReportId(report.id)}>
-                  {report.report_type} — {report.period ?? ""}
+                  {report.report_type} {report.period ?? ""}
                 </button>
                 <span className="text-neutral-400">{report.delivered_at ? new Date(report.delivered_at).toLocaleString() : "Non livré"}</span>
               </li>

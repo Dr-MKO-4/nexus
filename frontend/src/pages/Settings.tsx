@@ -53,7 +53,7 @@ const PROVIDER_LABELS: Record<string, string> = {
  * désactivé, faute d'infrastructure de stockage.
  */
 const NOT_PERSISTED_NOTICE =
-  "\"LLM & Modèles\" (statut des providers), \"Marque client\" (ligne éditoriale) et \"Utilisateurs\" sont réellement connectés au backend et persistés. \"Agents & Automatisation\" reste local (aucune route de configuration n'existe). \"Intégrations\" enregistre réellement la clé API saisie, mais sans flux OAuth2 (aucune infrastructure de callback n'existe) — la connexion n'est jamais vérifiée par un handshake réel. L'upload de fichiers (affiches/Figma) reste désactivé, faute de stockage.";
+  "\"LLM & Modèles\" (statut des providers), \"Marque client\" (ligne éditoriale) et \"Utilisateurs\" sont réellement connectés au backend et persistés. \"Agents & Automatisation\" reste local (aucune route de configuration n'existe). \"Intégrations\" enregistre réellement la clé API saisie, mais sans flux OAuth2 (aucune infrastructure de callback n'existe) la connexion n'est jamais vérifiée par un handshake réel. L'upload de fichiers (affiches/Figma) reste désactivé, faute de stockage.";
 
 function LLMModelsSection() {
   const [mode, setMode] = useState<"local" | "api" | "hybrid">("hybrid");
@@ -301,7 +301,7 @@ function BrandSection() {
         <CardContent>
           <Input type="file" accept="image/*" multiple disabled />
           <p className="mt-1 text-xs text-neutral-400">
-            Aucune infrastructure de stockage de fichiers n'existe dans ce backend (pas de route multipart) — non fonctionnel,
+            Aucune infrastructure de stockage de fichiers n'existe dans ce backend (pas de route multipart) non fonctionnel,
             volontairement désactivé plutôt que simulé.
           </p>
         </CardContent>
@@ -368,7 +368,7 @@ function IntegrationsSection() {
       <CardHeader><CardTitle>Intégrations</CardTitle></CardHeader>
       <CardContent className="space-y-2">
         <p className="text-xs text-neutral-500">
-          Aucun flux OAuth2 réel n'existe dans ce backend (pas d'infrastructure de callback) — la clé API saisie ici est
+          Aucun flux OAuth2 réel n'existe dans ce backend (pas d'infrastructure de callback) la clé API saisie ici est
           enregistrée telle quelle (`Client.integrations`), pas vérifiée par un handshake réel.
         </p>
         {isLoading ? (
@@ -445,7 +445,7 @@ function UsersSection() {
       <CardContent className="space-y-3">
         {lastTemporaryPassword && (
           <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
-            Mot de passe temporaire (à communiquer manuellement — aucun envoi d'email n'est configuré) : <code className="font-mono">{lastTemporaryPassword}</code>
+            Mot de passe temporaire (à communiquer manuellement aucun envoi d'email n'est configuré) : <code className="font-mono">{lastTemporaryPassword}</code>
           </p>
         )}
         {isLoading ? (

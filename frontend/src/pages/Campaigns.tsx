@@ -16,7 +16,7 @@ import type { Campaign, CampaignStatus } from "@/types";
  * Écarts corrigés ici (audit frontend/backend) : `PATCH /campaigns/{id}`,
  * `DELETE /campaigns/{id}` (archivage) et `GET /campaigns/{id}/history`
  * existent côté backend depuis le Prompt 7.1 mais n'étaient exposés par
- * AUCUNE page — cette page comble ce manque avec une liste + édition +
+ * AUCUNE page cette page comble ce manque avec une liste + édition +
  * archivage + historique (time-travel LangGraph) réels.
  */
 
@@ -36,7 +36,7 @@ export default function Campaigns() {
   const [historyOf, setHistoryOf] = useState<Campaign | null>(null);
 
   if (!clientId) {
-    return <EmptyState message="Aucun client actif — aucun endpoint de liste des clients n'existe pour les comptes admin." />;
+    return <EmptyState message="Aucun client actif aucun endpoint de liste des clients n'existe pour les comptes admin." />;
   }
 
   return (
@@ -152,7 +152,7 @@ function HistoryDialog({ campaign, onClose }: { campaign: Campaign; onClose: () 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[80vh] overflow-y-auto">
-        <DialogTitle>Historique — {campaign.name}</DialogTitle>
+        <DialogTitle>Historique {campaign.name}</DialogTitle>
         <div className="mt-4 space-y-2">
           {isLoading ? (
             <LoadingState />
@@ -163,7 +163,7 @@ function HistoryDialog({ campaign, onClose }: { campaign: Campaign; onClose: () 
               <Card key={i}>
                 <CardHeader>
                   <CardTitle className="text-xs font-normal text-neutral-500">
-                    {new Date(snapshot.created_at).toLocaleString()} — prochain(s) nœud(s) : {snapshot.next.join(", ") || "aucun (fin)"}
+                    {new Date(snapshot.created_at).toLocaleString()} prochain(s) nœud(s) : {snapshot.next.join(", ") || "aucun (fin)"}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>

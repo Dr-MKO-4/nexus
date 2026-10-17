@@ -100,9 +100,9 @@ const alerts = useMemo(() => rawAlerts.filter((a) => !a.read), [rawAlerts]);
 
 ## 3. Écarts identifiés, statut
 
-### 3.1 Endpoints campagnes/analytics jamais exposés côté UI — ✅ corrigé (§2.5, §2.6)
+### 3.1 Endpoints campagnes/analytics jamais exposés côté UI ✅ corrigé (§2.5, §2.6)
 
-### 3.2 Événements WebSocket jamais émis par le backend — ✅ corrigé pour 3 sur 3 (§2.7)
+### 3.2 Événements WebSocket jamais émis par le backend ✅ corrigé pour 3 sur 3 (§2.7)
 
 `CONTENT_STREAM` reste non émis, voir §2.7.
 
@@ -110,8 +110,8 @@ const alerts = useMemo(() => rawAlerts.filter((a) => !a.read), [rawAlerts]);
 
 - **LLM & Modèles** : "Statut des providers" ✅ réel (§2.3), reste (mode LLM, seuils de routage) local uniquement.
 - **Agents & Automatisation** : 100% local (seuils HITL, autonomie, tâches Celery Beat  les noms de tâches affichés sont réels, mais les toggles ne persistent rien).
-- **Marque client** : 100% local, aucun upload de fichier possible — nécessiterait une route multipart + un stockage de fichiers (S3/disque), infrastructure absente de ce backend. Non fabriqué.
-- **Intégrations** : 100% local, aucun flux OAuth2 réel — nécessiterait de vrais identifiants applicatifs (client_id/secret) par intégration (Google Ads, Meta, etc.), impossibles à fabriquer sans decision produit/API keys réelles. Non fabriqué.
+- **Marque client** : 100% local, aucun upload de fichier possible nécessiterait une route multipart + un stockage de fichiers (S3/disque), infrastructure absente de ce backend. Non fabriqué.
+- **Intégrations** : 100% local, aucun flux OAuth2 réel nécessiterait de vrais identifiants applicatifs (client_id/secret) par intégration (Google Ads, Meta, etc.), impossibles à fabriquer sans decision produit/API keys réelles. Non fabriqué.
 - **Utilisateurs** : ✅ réel (§2.8).
 
 ### 3.4 Limite structurelle : les comptes admin ne peuvent rien afficher

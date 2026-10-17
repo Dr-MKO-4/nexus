@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { archiveCampaign, getCampaignHistory, updateCampaign, type UpdateCampaignPayload } from "@/services/api";
 import type { CampaignHistorySnapshot } from "@/types";
 
-/** Time-travel LangGraph (GET /campaigns/{id}/history) — jamais exposé côté
+/** Time-travel LangGraph (GET /campaigns/{id}/history) jamais exposé côté
  * frontend jusqu'ici bien que l'endpoint existe depuis le Prompt 7.1. */
 export function useCampaignHistory(campaignId: string | undefined) {
   return useQuery<CampaignHistorySnapshot[]>({
